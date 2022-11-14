@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import format from "date-fns/format/index.js";
 import ptBR from "date-fns/locale/pt-BR/index.js";
 import joi from "joi";
+import { stripHtml } from "string-strip-html";
 
 const userSchema = joi.object({
     name: joi.string().required().min(3).trim(),
@@ -76,7 +77,6 @@ app.post("/participants", async (req, res) => {
         { name: req.body.name },
         {
             abortEarly: false,
-            convert: true,
         }
     );
 
@@ -85,7 +85,7 @@ app.post("/participants", async (req, res) => {
             .status(422)
             .send(error.details.map((detail) => detail.message));
 
-    const { name } = value;
+    const name = stripHtml(value.name).result;
 
     if (await userIsLogged(name, res)) {
         res.sendStatus(409);
@@ -125,7 +125,6 @@ app.post("/messages", async (req, res) => {
         { to, text, type },
         {
             abortEarly: false,
-            convert: true,
         }
     );
 
@@ -134,7 +133,9 @@ app.post("/messages", async (req, res) => {
             .status(422)
             .send(error.details.map((detail) => detail.message));
 
-    ({ to, text, type } = value);
+    to = stripHtml(value.to).result;
+    text = stripHtml(value.text).result;
+    type = stripHtml(value.type).result;
 
     try {
         await messagesCollection.insertOne({
@@ -177,7 +178,7 @@ app.get("/messages", async (req, res) => {
     }
 });
 
-app.put("/status", async (req, res) => {
+app.post("/status", async (req, res) => {
     const { user } = req.headers;
     const filter = { name: user };
 
