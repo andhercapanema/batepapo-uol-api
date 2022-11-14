@@ -13,25 +13,18 @@ dotenv.config();
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 let db, users, messages;
 
-(async function connectToMongoClient() {
-    try {
-        await mongoClient.connect();
-        db = mongoClient.db("batePapoUol");
-        users = db.collection("users");
-        messages = db.collection("messages");
-    } catch (err) {
-        console.error(err);
-    }
-})();
+try {
+    await mongoClient.connect();
+    db = mongoClient.db("batePapoUol");
+    users = db.collection("users");
+    messages = db.collection("messages");
+} catch (err) {
+    console.error(err);
+}
 
 async function userIsLogged(name) {
     try {
         const onlineUsers = await users.find().toArray();
-        console.log(
-            onlineUsers
-                .map((user) => user.name)
-                .some((onlineName) => onlineName === name)
-        );
         return onlineUsers
             .map((user) => user.name)
             .some((onlineName) => onlineName === name);
@@ -42,12 +35,12 @@ async function userIsLogged(name) {
 
 async function userLogin(name, res) {
     try {
-        users.insertOne({
+        await users.insertOne({
             name,
             lastStatus: new Date(),
         });
 
-        messages.insertOne({
+        await messages.insertOne({
             from: name,
             to: "Todos",
             text: "entra na sala...",
@@ -61,7 +54,7 @@ async function userLogin(name, res) {
     }
 }
 
-app.post("/participants", (req, res) => {
+app.post("/participants", async (req, res) => {
     const { name } = req.body;
 
     if (name === undefined || name?.trim().length === 0) {
@@ -69,13 +62,20 @@ app.post("/participants", (req, res) => {
         return;
     }
 
-    (async () => {
-        if (await userIsLogged(name)) {
-            res.sendStatus(409);
-        } else {
-            userLogin(name, res);
-        }
-    })();
+    if (await userIsLogged(name)) {
+        res.sendStatus(409);
+    } else {
+        userLogin(name, res);
+    }
+});
+
+app.get("/participants", async (req, res) => {
+    try {
+        const onlineUsers = await users.find().toArray();
+        res.send(onlineUsers);
+    } catch (err) {
+        res.status(500).send(err);
+    }
 });
 
 app.post("/test", (req, res) => {
