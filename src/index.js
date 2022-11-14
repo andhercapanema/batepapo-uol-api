@@ -178,6 +178,26 @@ app.get("/messages", async (req, res) => {
     }
 });
 
+app.delete("/messages/:id", async (req, res) => {
+    const { user } = req.headers;
+    const { id } = req.params;
+    const filter = { _id: ObjectId(id) };
+
+    try {
+        const messageToDelete = await messagesCollection.findOne(filter);
+
+        if (messageToDelete === null) return res.sendStatus(404);
+
+        if (messageToDelete.from !== user) return res.sendStatus(401);
+
+        await messagesCollection.deleteOne(filter);
+        res.sendStatus(200);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
+});
+
 app.post("/status", async (req, res) => {
     const { user } = req.headers;
     const filter = { name: user };
@@ -214,7 +234,7 @@ async function logoff({ _id, name }) {
     }
 }
 
-setInterval(async () => {
+/* setInterval(async () => {
     try {
         const onlineUsers = await usersCollection.find().toArray();
 
@@ -227,6 +247,6 @@ setInterval(async () => {
         console.error(err);
         res.sendStatus(500);
     }
-}, 15000);
+}, 15000); */
 
 app.listen(5000, () => console.log("Server running in port: 5000"));
