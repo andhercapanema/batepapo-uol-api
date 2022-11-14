@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { ConnectionClosedEvent, MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import format from "date-fns/format/index.js";
 import ptBR from "date-fns/locale/pt-BR/index.js";
@@ -187,7 +187,7 @@ app.put("/status", async (req, res) => {
         if (!userIsLogged) return res.sendStatus(404);
 
         await usersCollection.updateOne(filter, {
-            $set: { ...filter, lastStatus: newStandardTime() },
+            $set: { ...filter, lastStatus: new Date() },
         });
 
         res.sendStatus(200);
@@ -196,5 +196,36 @@ app.put("/status", async (req, res) => {
         res.sendStatus(500);
     }
 });
+
+async function logoff({ _id, name }) {
+    try {
+        await usersCollection.deleteOne({ _id });
+
+        await messagesCollection.insertOne({
+            from: name,
+            to: "Todos",
+            text: "sai na sala...",
+            type: "status",
+            time: newStandardTime(),
+        });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+setInterval(async () => {
+    try {
+        const onlineUsers = await usersCollection.find().toArray();
+
+        const updatedMoreThanTenSecAgo = onlineUsers.filter(
+            ({ lastStatus }) => new Date() - lastStatus > 10000
+        );
+
+        updatedMoreThanTenSecAgo.forEach((user) => logoff(user));
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
+}, 15000);
 
 app.listen(5000, () => console.log("Server running in port: 5000"));
