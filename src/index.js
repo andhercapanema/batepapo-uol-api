@@ -109,9 +109,10 @@ app.post("/messages", async (req, res) => {
     const { user } = req.headers;
 
     try {
-        const userIsLogged = await usersCollection.findOne({ name: user });
+        const userIsLogged =
+            (await usersCollection.findOne({ name: user })) !== null;
 
-        if (userIsLogged === null)
+        if (!userIsLogged)
             return res
                 .status(422)
                 .send({ message: "Usuário remetente não está logado!" });
@@ -170,6 +171,26 @@ app.get("/messages", async (req, res) => {
             return res.send(filteredMessages.slice(-limit));
 
         res.send(filteredMessages);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
+});
+
+app.put("/status", async (req, res) => {
+    const { user } = req.headers;
+    const filter = { name: user };
+
+    try {
+        const userIsLogged = (await usersCollection.findOne(filter)) !== null;
+
+        if (!userIsLogged) return res.sendStatus(404);
+
+        await usersCollection.updateOne(filter, {
+            $set: { ...filter, lastStatus: newStandardTime() },
+        });
+
+        res.sendStatus(200);
     } catch (err) {
         console.error(err);
         res.sendStatus(500);
