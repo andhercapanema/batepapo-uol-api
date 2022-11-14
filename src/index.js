@@ -4,6 +4,11 @@ import { ConnectionClosedEvent, MongoClient } from "mongodb";
 import dotenv from "dotenv";
 import format from "date-fns/format/index.js";
 import ptBR from "date-fns/locale/pt-BR/index.js";
+import joi from "joi";
+
+const userSchema = joi.object({
+    name: joi.string().required().min(3).trim(),
+});
 
 const app = express();
 
@@ -55,12 +60,20 @@ async function userLogin(name, res) {
 }
 
 app.post("/participants", async (req, res) => {
-    const { name } = req.body;
+    const userValidation = userSchema.validate(
+        { name: req.body.name },
+        {
+            abortEarly: false,
+            convert: true,
+        }
+    );
 
-    if (name === undefined || name?.trim().length === 0) {
-        res.sendStatus(422);
-        return;
-    }
+    if (userValidation.error !== undefined)
+        return res
+            .status(422)
+            .send(userValidation.error.details.map((detail) => detail.message));
+
+    const { name } = userValidation.value;
 
     if (await userIsLogged(name)) {
         res.sendStatus(409);
