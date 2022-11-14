@@ -151,4 +151,29 @@ app.post("/messages", async (req, res) => {
     }
 });
 
+app.get("/messages", async (req, res) => {
+    const { limit } = req.query;
+    const { user } = req.headers;
+
+    if (user === undefined)
+        return res.status(400).send("Usuário não identificado!");
+
+    try {
+        const messages = await messagesCollection.find().toArray();
+
+        const filteredMessages = messages.filter(
+            ({ from, to, type }) =>
+                type !== "private_message" || from === user || to === user
+        );
+
+        if (limit !== undefined)
+            return res.send(filteredMessages.slice(-limit));
+
+        res.send(filteredMessages);
+    } catch (err) {
+        console.error(err);
+        res.sendStatus(500);
+    }
+});
+
 app.listen(5000, () => console.log("Server running in port: 5000"));
