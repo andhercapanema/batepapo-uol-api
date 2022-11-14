@@ -36,10 +36,7 @@ try {
 
 async function userIsLogged(name, res) {
     try {
-        const onlineUsers = await usersCollection.find().toArray();
-        return onlineUsers
-            .map((user) => user.name)
-            .some((onlineName) => onlineName === name);
+        return (await usersCollection.findOne({ name })) !== null;
     } catch (err) {
         console.error(err);
         res.sendStatus(500);
@@ -104,23 +101,7 @@ app.get("/participants", async (req, res) => {
     }
 });
 
-app.post("/messages", async (req, res) => {
-    let { to, text, type } = req.body;
-    const { user } = req.headers;
-
-    try {
-        const userIsLogged =
-            (await usersCollection.findOne({ name: user })) !== null;
-
-        if (!userIsLogged)
-            return res
-                .status(422)
-                .send({ message: "Usuário remetente não está logado!" });
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
-    }
-
+function validateMessage({ body: { to, text, type } }, res) {
     const { value, error } = messageSchema.validate(
         { to, text, type },
         {
@@ -128,28 +109,45 @@ app.post("/messages", async (req, res) => {
         }
     );
 
-    if (error !== undefined)
+    if (error !== undefined) {
+        res.status(422).send(error.details.map((detail) => detail.message));
+        return { isValid: false };
+    }
+
+    return {
+        to: stripHtml(value.to).result,
+        text: stripHtml(value.text).result,
+        type: stripHtml(value.type).result,
+        isValid: true,
+    };
+}
+
+app.post("/messages", async (req, res) => {
+    const { user } = req.headers;
+
+    if (!(await userIsLogged(user, res))) {
         return res
             .status(422)
-            .send(error.details.map((detail) => detail.message));
+            .send({ message: "Usuário remetente não está logado!" });
+    }
 
-    to = stripHtml(value.to).result;
-    text = stripHtml(value.text).result;
-    type = stripHtml(value.type).result;
+    if (validateMessage(req, res).isValid) {
+        const { to, text, type } = validateMessage(req, res);
 
-    try {
-        await messagesCollection.insertOne({
-            from: user,
-            to,
-            text,
-            type,
-            time: newStandardTime(),
-        });
+        try {
+            await messagesCollection.insertOne({
+                from: user,
+                to,
+                text,
+                type,
+                time: newStandardTime(),
+            });
 
-        res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        res.sendStatus(500);
+            res.sendStatus(201);
+        } catch (err) {
+            console.error(err);
+            res.sendStatus(500);
+        }
     }
 });
 
@@ -195,6 +193,39 @@ app.delete("/messages/:id", async (req, res) => {
     } catch (err) {
         console.error(err);
         res.sendStatus(500);
+    }
+});
+
+app.put("/messages/:id", async (req, res) => {
+    const { user } = req.headers;
+    const { id } = req.params;
+    const filter = { _id: ObjectId(id) };
+
+    if (!(await userIsLogged(user, res))) {
+        return res
+            .status(422)
+            .send({ message: "Usuário remetente não está logado!" });
+    }
+
+    if (validateMessage(req, res).isValid) {
+        const { to, text, type } = validateMessage(req, res);
+
+        try {
+            const messageToUpdate = await messagesCollection.findOne(filter);
+
+            if (messageToUpdate === null) return res.sendStatus(404);
+
+            if (messageToUpdate.from !== user) return res.sendStatus(401);
+
+            await messagesCollection.updateOne(filter, {
+                $set: { ...messageToUpdate, to, text, type },
+            });
+
+            res.sendStatus(200);
+        } catch (err) {
+            console.error(err);
+            res.sendStatus(500);
+        }
     }
 });
 
