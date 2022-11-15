@@ -265,7 +265,7 @@ async function logoff({ _id, name }) {
     }
 }
 
-/* setInterval(async () => {
+setInterval(async () => {
     try {
         const onlineUsers = await usersCollection.find().toArray();
 
@@ -278,6 +278,6 @@ async function logoff({ _id, name }) {
         console.error(err);
         res.sendStatus(500);
     }
-}, 15000); */
+}, 15000);
 
 app.listen(5000, () => console.log("Server running in port: 5000"));
